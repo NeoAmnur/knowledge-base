@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Knowledge Base</title>
+
+<style>
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background: #121212;
+  color: #e0e0e0;
+  margin: 0;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+}
+
+#layout {
+  display: flex;
+  width: 95%;
+  max-width: 1400px;
+  margin-top: 30px;
+}
+
+/* LEFT PANEL */
+#leftPanel {
+  width: 420px;
+  background: #1e1e1e;
+  padding: 30px;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.6);
+}
+
+/* RIGHT PANEL */
+#rightPanel {
+  flex: 1;
+  margin-left: 30px;
+  padding: 30px;
+  overflow-y: auto;
+  background: #1a1a1a;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0,0,0,0.4);
+}
+
+h2 {
+  margin-top: 0;
+  text-align: center;
+  margin-bottom: 25px;
+}
+
+label {
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+input, select {
+  width: 100%;
+  padding: 10px;
+  margin-top: 5px;
+  margin-bottom: 15px;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  color: white;
+  outline: none;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  color: white;
+  font-weight: 500;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.search-btn { background: #4caf50; }
+.search-btn:hover { background: #45a049; }
+
+.add-btn { background: #ff9800; margin-top: 10px; }
+.add-btn:hover { background: #ffb74d; }
+
+.card {
+  background: #1e1e1e;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #333;
+}
+
+.top-match {
+  border: 2px solid #4caf50;
+  background: #202a20;
+}
+
+.hidden { display: none; }
+
+/* LOGOUT */
+.logout-btn {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 12px;
+  background: #c62828;
+  color: white;
+  border-radius: 20px;
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  cursor: pointer;
+}
+
+.logout-btn:hover { background: #e53935; }
+</style>
+</head>
+
+<body>
+
+<div id="auth">
+  <div id="leftPanel">
+    <h2>Knowledge Base</h2>
+    <label>Email</label>
+    <input type="email" id="email">
+    <label>Password</label>
+    <input type="password" id="password">
+    <button class="search-btn" onclick="login()">Login</button>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div id="layout">
+
+    <div id="leftPanel">
+      <h2>Knowledge Base</h2>
+
+      <label>Select Product</label>
+      <select id="product"></select>
+
+      <div id="areaSection" class="hidden">
+        <label>Select Area</label>
+        <select id="area"></select>
+      </div>
+
+      <div id="searchSection" class="hidden">
+        <label>Issue Keywords</label>
+        <input type="text" id="searchText" placeholder="Type the problem...">
+        <button class="search-btn" onclick="search()">Search</button>
+        <button class="add-btn" onclick="openAddForm()">Add New Issue</button>
+      </div>
+    </div>
+
+    <div id="rightPanel">
+      <div id="addForm" class="hidden">
+        <h3>Add New Issue</h3>
+        <label>Operating System</label>
+        <input type="text" id="new_os">
+        <label>Version</label>
+        <input type="text" id="new_version">
+        <label>Problem Description</label>
+        <input type="text" id="new_problem">
+        <label>Solution</label>
+        <input type="text" id="new_solution">
+        <label>Root Cause</label>
+        <input type="text" id="new_root">
+        <button class="add-btn" onclick="saveIssue()">Save Issue</button>
+        <hr>
+      </div>
+
+      <div id="results"></div>
+    </div>
+
+  </div>
+
+  <button class="logout-btn" onclick="logout()">Logout</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const { createClient } = supabase;
+
+const supabaseClient = createClient(
+  "https://iikeeybjutuydurxbast.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlpa2VleWJqdXR1eWR1cnhiYXN0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE2MDEzODQsImV4cCI6MjA4NzE3NzM4NH0.no8umevswNRuytAL6xQFJwlntqE5kIYRu-IZdNLABk0"
+);
+
+supabaseClient.auth.getSession().then(({ data }) => {
+  if (data.session) showApp();
+});
+
+async function login() {
+  const { error } = await supabaseClient.auth.signInWithPassword({
+    email: email.value,
+    password: password.value
+  });
+  if (error) alert(error.message);
+  else showApp();
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  location.reload();
+}
+
+function showApp() {
+  auth.classList.add("hidden");
+  app.classList.remove("hidden");
+  loadProducts();
+}
+
+async function loadProducts() {
+  const { data } = await supabaseClient.rpc("get_products");
+
+  product.innerHTML = "";
+  const def = new Option("-- Select Product --", "");
+  product.appendChild(def);
+
+  data.forEach(p => {
+    product.appendChild(new Option(p.name, p.id));
+  });
+}
+
+product.addEventListener("change", async function() {
+  if (!this.value) {
+    areaSection.classList.add("hidden");
+    searchSection.classList.add("hidden");
+    return;
+  }
+
+  const { data } = await supabaseClient.rpc("get_areas", {
+    p_product_id: this.value
+  });
+
+  area.innerHTML = "";
+  area.appendChild(new Option("-- Select Area --", ""));
+  area.appendChild(new Option("-- Search ALL --", "ALL"));
+  data.forEach(a => {
+    area.appendChild(new Option(a.name, a.id));
+  });
+
+  areaSection.classList.remove("hidden");
+});
+
+area.addEventListener("change", function() {
+  if (this.value) searchSection.classList.remove("hidden");
+  else searchSection.classList.add("hidden");
+});
+
+function openAddForm() {
+
+  addForm.classList.remove("hidden");
+  results.innerHTML = "";
+
+  // Transporta o texto digitado
+  if (searchText.value.trim() !== "") {
+    new_problem.value = searchText.value;
+  }
+}
+
+async function saveIssue() {
+  const { error } = await supabaseClient.rpc("add_issue", {
+    p_product_id: product.value,
+    p_area_id: area.value,
+    p_os: new_os.value,
+    p_version: new_version.value,
+    p_problem: new_problem.value,
+    p_solution: new_solution.value,
+    p_root_cause: new_root.value
+  });
+
+  if (error) return alert(error.message);
+
+  alert("Issue saved successfully.");
+  addForm.classList.add("hidden");
+}
+
+async function search() {
+
+  console.log("Product:", product.value);
+  console.log("Area:", area.value);
+  console.log("Query:", searchText.value);
+
+ const { data, error } = await supabaseClient.rpc("search_issues", {
+  p_product_id: product.value,
+  p_area_id: area.value,
+  p_query: searchText.value
+});
+
+  console.log("Error:", error);
+  console.log("Data:", data);
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "";
+
+  if (!data || data.length === 0) {
+    resultsDiv.innerHTML = "<div class='card'>No results found.</div>";
+    return;
+  }
+
+  // TOP MATCH
+  resultsDiv.innerHTML += `
+    <div class="card top-match">
+      <h3>Top Match</h3>
+      <p><strong>Problem:</strong> ${data[0].problem_description}</p>
+      <p><strong>Solution:</strong> ${data[0].solution_text || ''}</p>
+      <p><strong>Root Cause:</strong> ${data[0].root_cause || ''}</p>
+    </div>
+  `;
+
+  // RESTO
+  data.slice(1).forEach(r => {
+    resultsDiv.innerHTML += `
+      <div class="card">
+        <p><strong>Problem:</strong> ${r.problem_description}</p>
+        <p><strong>Solution:</strong> ${r.solution_text || ''}</p>
+        <p><strong>Root Cause:</strong> ${r.root_cause || ''}</p>
+      </div>
+    `;
+  });
+}
+function openAddForm() {
+  addForm.classList.remove("hidden");
+  results.innerHTML = "";
+
+  if (searchText.value.trim() !== "") {
+    new_problem.value = searchText.value;
+  }
+}
+
+async function saveIssue() {
+  const { error } = await supabaseClient.rpc("add_issue", {
+    p_product_id: product.value,
+    p_area_id: area.value,
+    p_os: new_os.value,
+    p_version: new_version.value,
+    p_problem: new_problem.value,
+    p_solution: new_solution.value,
+    p_root_cause: new_root.value
+  });
+
+  if (error) return alert(error.message);
+
+  alert("Issue saved successfully.");
+  addForm.classList.add("hidden");
+}
+
+async function search() {
+
+  const { data, error } = await supabaseClient.rpc("search_issues", {
+    p_product_id: product.value,
+    p_area_id: area.value,
+    p_query: searchText.value
+  });
+
+  if (error) {
+    alert(error.message);
+    return;
+  }
+
+  const resultsDiv = document.getElementById("results");
+  resultsDiv.innerHTML = "";
+
+  if (!data || data.length === 0) {
+    resultsDiv.innerHTML = `
+      <div class="card">
+        <h3>No results found</h3>
+        <p>No issue matched these keywords.</p>
+        <button class="add-btn" onclick="openAddForm()">Add This Issue</button>
+      </div>
+    `;
+    return;
+  }
+
+  // TOP MATCH
+  resultsDiv.innerHTML += `
+    <div class="card top-match">
+      <h3>Top Match</h3>
+      <p><strong>Problem:</strong> ${data[0].problem_description}</p>
+      <p><strong>Solution:</strong> ${data[0].solution_text || ''}</p>
+      <p><strong>Root Cause:</strong> ${data[0].root_cause || ''}</p>
+    </div>
+  `;
+
+  // RESTO
+  data.slice(1).forEach(r => {
+    resultsDiv.innerHTML += `
+      <div class="card">
+        <p><strong>Problem:</strong> ${r.problem_description}</p>
+        <p><strong>Solution:</strong> ${r.solution_text || ''}</p>
+        <p><strong>Root Cause:</strong> ${r.root_cause || ''}</p>
+      </div>
+    `;
+  });
+}
+
+// ENTER dispara busca
+searchText.addEventListener("keydown", function(e) {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    search();
+  }
+});
+</script>
+</body>
+</html>
